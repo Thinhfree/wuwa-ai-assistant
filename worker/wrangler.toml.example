@@ -1,0 +1,13 @@
+name = "wuwa-ai-assistant"
+main = "ai-worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Set this exact origin of the PWA. Do NOT include trailing slash or repo path.
+# Example: "https://username.github.io"
+ALLOWED_ORIGIN = "https://YOUR_USERNAME.github.io"
+GEMINI_MODEL = "gemini-2.5-flash"
+
+# DO NOT place GEMINI_API_KEY or APP_ACCESS_TOKEN here.
+# Run: npx wrangler secret put GEMINI_API_KEY
+# Run: npx wrangler secret put APP_ACCESS_TOKEN
