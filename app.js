@@ -1,4 +1,4 @@
-import { buildGuide, guideLinks, pickObjective, cleanText, progressPercent } from './logic.mjs';
+import { buildGuide, guideLinks, pickObjective, pickQuestTitle, cleanText, progressPercent } from './logic.mjs';
 
 const $ = (id) => document.getElementById(id);
 const STORAGE = 'wuwa-assistant-v1';
@@ -13,7 +13,7 @@ function loadStored() {
 const data = loadStored();
 const state = {
   imageData:null, crop:null, drawing:false, cropStart:null, cropEnabled:false,
-  currentGuide:null, checks:[], editingId:null, aiAuth:'', imageName:'', toastTimeout:null, worker:null
+  currentGuide:null, checks:[], editingId:null, aiAuth:'', imageName:'', toastTimeout:null, worker:null, lastAutoObjective:'', lastAutoTitle:''
 };
 
 function saveData() {
@@ -143,7 +143,14 @@ $('ocrButton').addEventListener('click',async()=>{
     const recognized=cleanText(result?.data?.text||'');
     if(!recognized){setOcrStatus('Không nhận diện được chữ. Thử khoanh đúng khu vực chứa chữ hoặc nhập tay.',true);return}
     $('ocrText').value=recognized;
-    if(!$('questObjective').value.trim())$('questObjective').value=pickObjective(recognized);
+    const nextObjective=pickObjective(recognized);
+    const nextTitle=pickQuestTitle(recognized);
+    if(nextObjective && (!$('questObjective').value.trim() || $('questObjective').value===state.lastAutoObjective)) {
+      $('questObjective').value=nextObjective; state.lastAutoObjective=nextObjective;
+    }
+    if(nextTitle && (!$('questTitle').value.trim() || $('questTitle').value===state.lastAutoTitle)) {
+      $('questTitle').value=nextTitle; state.lastAutoTitle=nextTitle;
+    }
     setOcrStatus(`Đã nhận diện ${recognized.length} ký tự trên thiết bị. Hãy kiểm tra và sửa phần chữ đọc sai.`);
     $('ocrProgress').style.width='100%';toast('Đọc chữ thành công!');
   } catch(e){console.error(e);setOcrStatus(`Lỗi OCR: ${e?.message||e}`,true)}

@@ -13,7 +13,7 @@ const RULES = [
   { id:'fight', re:/\b(defeat|eliminate|kill|battle|combat|enemy|enemies|tacet discord|boss|challeng(?:e|ing)|fight|clear the wave)\b|đánh bại|tiêu diệt|kẻ địch|chiến đấu|thử thách|con trùm/i },
   { id:'collect', re:/\b(collect|gather|obtain|pick up|retrieve|find the (?:item|object|material)|investigate the object|loot|materials|supply)\b|thu thập|nhặt|vật phẩm|nguyên liệu|tìm món đồ/i },
   { id:'dialogue', re:/\b(talk to|speak to|ask|converse|dialogue|meet with|report back to|return to|interview)\b|nói chuyện|trò chuyện|báo cáo|gặp npc|gặp nhân vật/i },
-  { id:'explore', re:/\b(go to|head to|reach|navigate|follow|track|locate|search for|enter|exit|explore|investigate|travel|proceed|find a way)\b|đi tới|di chuyển|đến khu vực|đi theo|tìm đường|khám phá|điều tra|tìm kiếm|đến gặp/i }
+  { id:'explore', re:/\b(go to|head to|reach|navigate|follow|track|locate|search for|enter|exit|explore|investigate|travel|proceed|find a way|walk around|look around|move around|look for|check the area|check around)\b|đi tới|di chuyển|đến khu vực|đi theo|tìm đường|khám phá|điều tra|tìm kiếm|đến gặp|đi xung quanh|đi quanh/i }
 ];
 
 export function cleanText(value) {
@@ -28,10 +28,62 @@ export function guessCategory(text) {
   return 'unknown';
 }
 
-export function pickObjective(raw) {
+// OCR toàn màn hình thường chứa tên nhiều quest + menu. Chỉ đọc dòng mục tiêu,
+// không dùng chữ từ menu để suy đoán loại nhiệm vụ.
+const OBJECTIVE_ACTION = /\b(walk around|look around|look for|check around|talk to|speak to|go to|reach|defeat|collect|obtain|investigate|follow|search for|head to|activate|interact with|solve|find|enter|meet|return to|use the|wait for|proceed to|move to|explore|travel to)\b|nói chuyện|đánh bại|tìm|đến|nhặt|thu thập|kích hoạt|điều tra|hoàn thành|tiêu diệt|đi quanh|đi xung quanh/i;
+const TRAILING_METERS = /\s+\d{1,4}\s*m\s*$/i;
+function getObjectiveMatch(raw) {
   const lines = cleanText(raw).split('\n').filter(Boolean);
-  const patterns = /\b(talk to|speak to|go to|reach|defeat|collect|obtain|investigate|follow|search|head to|activate|interact|solve|find|enter|meet|return|use the|look for|wait for)\b|nói chuyện|đánh bại|tìm|đến|nhặt|thu thập|kích hoạt|điều tra|hoàn thành|tiêu diệt/i;
-  return (lines.find((x) => x.length > 8 && x.length < 150 && patterns.test(x)) || lines.find(x => x.length > 12 && x.length < 120) || '').slice(0,180);
+  const candidates=[];
+  for (const [i,line] of lines.entries()) {
+    const m = OBJECTIVE_ACTION.exec(line);
+    if (!m || line.length < 9 || line.length > 230) continue;
+    // Bỏ tên quest và ký tự UI ở đầu khi OCR ghép tên + mục tiêu trên một dòng.
+    const objective=line.slice(m.index).replace(TRAILING_METERS,'').trim();
+    if (objective.length < 10 || objective.length > 180) continue;
+    if (/^(?:find|search|meet|follow|enter)\s*$/i.test(objective)) continue;
+    let score=10;
+    if (/\b(walk around|look around|talk to|speak to|defeat|collect|investigate|interact with|activate|go to|head to|reach)\b/i.test(objective)) score+=8;
+    if (TRAILING_METERS.test(line)) score+=7;
+    if (objective.length>22 && objective.length<145) score+=5;
+    if (/\b(quest|quests|press|controls|menu|setting|objective:)\b/i.test(objective)) score-=10;
+    candidates.push({line,i,objective,score,start:m.index});
+  }
+  candidates.sort((a,b)=>b.score-a.score || a.i-b.i);
+  return candidates[0] || null;
+}
+
+export function pickObjective(raw) {
+  return getObjectiveMatch(raw)?.objective || '';
+}
+
+function titleCandidate(raw) {
+  // Chỉ tự gợi ý tên nếu có đặc điểm giống tên quest, tránh tên menu/biểu tượng.
+  const cleaned=String(raw||'').trim()
+    .replace(/^(?:[\W\d_]+|[a-z]{1,2}\s+(?=[A-Z]))+/,'')
+    .replace(/^[\s|:.,;-]+|[\s|:.,;-]+$/g,'');
+  if (cleaned.length<11 || cleaned.length>90 || /\b(quests?|menu|journal|track|completed|rewards|details)\b/i.test(cleaned)) return '';
+  const words=cleaned.split(/\s+/);
+  if(words.length<3 || words.length>13) return '';
+  // Tên quest thường dùng title case hoặc chữ hoa đầu câu.
+  if(!/^[A-ZÀ-Ỹ]/.test(cleaned)) return '';
+  if(/[.!?]$/.test(cleaned)) return '';
+  return cleaned;
+}
+
+export function pickQuestTitle(raw) {
+  const match=getObjectiveMatch(raw);
+  if(!match) return '';
+  // Trường hợp: "Dawn Breaks on Dark Tides Walk around the venue..."
+  const inline=titleCandidate(match.line.slice(0,match.start));
+  if(inline) return inline;
+  // Trường hợp tên quest là dòng ngay trước mục tiêu.
+  const lines=cleanText(raw).split('\n');
+  for(let j=match.i-1;j>=Math.max(0,match.i-2);j--){
+    const candidate=titleCandidate(lines[j]);
+    if(candidate) return candidate;
+  }
+  return '';
 }
 
 const COMMON_START = [
@@ -41,7 +93,7 @@ const COMMON_START = [
 const CATEGORY_STEPS = {
   explore: [
     'Mở bản đồ, quan sát biểu tượng chỉ đường; kiểm tra chiều cao của điểm đích (trên cao hoặc dưới lòng đất).',
-    'Tìm lối vào, cầu thang, hang hoặc điểm dịch chuyển gần nhất rồi đi theo chỉ dẫn.',
+    'Đi tới vùng được đánh dấu, quan sát cả phía trên/dưới hoặc đi quanh khu vực để kích hoạt mục tiêu.',
     'Khi tới vùng mục tiêu, tìm điểm tương tác hoặc NPC được đánh dấu.'
   ],
   dialogue: [
@@ -72,10 +124,11 @@ const CATEGORY_STEPS = {
 };
 
 export function buildGuide({ title='', objective='', ocr='', kind='auto' }={}) {
-  const cleanTitle = String(title).trim().slice(0,140);
+  const cleanTitle = (String(title).trim() || pickQuestTitle(ocr)).slice(0,140);
   const raw = cleanText(ocr);
   const resolvedObjective = String(objective).trim().slice(0,300) || pickObjective(raw);
-  const type = kind && kind !== 'auto' && CATEGORIES[kind] ? kind : guessCategory(`${resolvedObjective}\n${raw}`);
+  // Ưu tiên MỤC TIÊU, không cho chữ menu OCR kích hoạt nhầm loại 'Giải đố'.
+  const type = kind && kind !== 'auto' && CATEGORIES[kind] ? kind : guessCategory(resolvedObjective || pickObjective(raw));
   const isText = Boolean(resolvedObjective || raw || cleanTitle);
   const confidence = type === 'unknown' ? 'thấp' : 'trung bình';
   const steps = isText ? [...COMMON_START, ...CATEGORY_STEPS[type]] : CATEGORY_STEPS.unknown;
