@@ -1,0 +1,10 @@
+{
+  "name": "wuwa-ai-assistant",
+  "version": "2.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Web/PWA quest assistant for Wuthering Waves, with a user-owned Cloudflare Worker",
+  "scripts": {
+    "test": "node tests/test-logic.mjs && node tests/test-worker.mjs && node tests/test-ui-contract.mjs"
+  }
+}

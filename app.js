@@ -13,7 +13,7 @@ function loadStored() {
 const data = loadStored();
 const state = {
   imageData:null, crop:null, drawing:false, cropStart:null, cropEnabled:false,
-  currentGuide:null, checks:[], editingId:null, aiAuth:'', imageName:'', toastTimeout:null, worker:null, lastAutoObjective:'', lastAutoTitle:''
+  currentGuide:null, checks:[], editingId:null, aiAuth:'', imageName:'', toastTimeout:null, worker:null, lastAutoObjective:'', lastAutoTitle:'', previousGuide:null, aiBusy:false, uploadSerial:0
 };
 
 function saveData() {
@@ -68,15 +68,25 @@ async function setImage(file) {
   if(!file)return;
   if(!(file.type.startsWith('image/')||/\.(heic|heif|jpg|jpeg|png|webp)$/i.test(file.name))){toast('Hãy chọn một file hình ảnh.',true);return}
   if(file.size>35*1024*1024){toast('Ảnh vượt quá 35MB. Hãy chụp lại hoặc nén ảnh.',true);return}
+  const requestId=++state.uploadSerial;
   setOcrStatus('Đang đọc ảnh…');
   try {
     const obj=await readImageAsDataURL(file);
+    if(requestId!==state.uploadSerial)return;
     state.imageData=obj.dataUrl;state.imageName=file.name;state.crop=null;state.cropEnabled=false;
+    // A new screenshot must not silently reuse an old quest title/objective/category.
+    $('questTitle').value='';
+    $('questObjective').value='';
+    $('ocrText').value='';
+    $('questKind').value='auto';
+    if(state.currentGuide?.source==='ai') state.previousGuide=state.currentGuide;
+    state.currentGuide=null;state.checks=[];state.editingId=null;
+    $('resultSection').hidden=true;
     $('cropRect').hidden=true;$('clearCrop').hidden=true;$('cropToggle').textContent='Khoanh vùng chữ';$('cropSurface').classList.remove('crop-mode');
     $('previewImage').src=obj.dataUrl;$('previewWrap').hidden=false;$('uploadZone').hidden=true;
     $('imageMeta').textContent=`${obj.width} × ${obj.height} • xử lý cục bộ`;
-    setOcrStatus('Đã nhận ảnh. Nhấn “Đọc chữ từ ảnh”, hoặc khoanh vùng chữ trước.');
-  } catch(e){setOcrStatus(String(e.message||e),true)}
+    setOcrStatus('Ảnh đã sẵn sàng. Có thể bấm “Giải nhiệm vụ bằng AI” ngay; OCR không bắt buộc.');
+  } catch(e){if(requestId===state.uploadSerial)setOcrStatus(String(e.message||e),true)}
 }
 $('imageInput').addEventListener('change',async e=>{await setImage(e.target.files?.[0]);e.target.value='';});
 $('resetImage').addEventListener('click',()=>{$('imageInput').click()});
@@ -143,14 +153,13 @@ $('ocrButton').addEventListener('click',async()=>{
     const recognized=cleanText(result?.data?.text||'');
     if(!recognized){setOcrStatus('Không nhận diện được chữ. Thử khoanh đúng khu vực chứa chữ hoặc nhập tay.',true);return}
     $('ocrText').value=recognized;
-    const nextObjective=pickObjective(recognized);
-    const nextTitle=pickQuestTitle(recognized);
-    if(nextObjective && (!$('questObjective').value.trim() || $('questObjective').value===state.lastAutoObjective)) {
-      $('questObjective').value=nextObjective; state.lastAutoObjective=nextObjective;
-    }
-    if(nextTitle && (!$('questTitle').value.trim() || $('questTitle').value===state.lastAutoTitle)) {
-      $('questTitle').value=nextTitle; state.lastAutoTitle=nextTitle;
-    }
+    // For each OCR pass, refresh inferred fields; no stale quest HUD text.
+    $('questObjective').value=pickObjective(recognized);
+    $('questTitle').value=pickQuestTitle(recognized);
+    $('questKind').value='auto';
+    state.lastAutoObjective=$('questObjective').value;
+    state.lastAutoTitle=$('questTitle').value;
+    if(!$('questObjective').value) toast('Chưa thấy mục tiêu. Hãy khoanh đúng khu vực chữ trong game hoặc nhập tay.',true);
     setOcrStatus(`Đã nhận diện ${recognized.length} ký tự trên thiết bị. Hãy kiểm tra và sửa phần chữ đọc sai.`);
     $('ocrProgress').style.width='100%';toast('Đọc chữ thành công!');
   } catch(e){console.error(e);setOcrStatus(`Lỗi OCR: ${e?.message||e}`,true)}
@@ -183,6 +192,7 @@ function renderGuide(){
   const top=byText('div','result-header','');
   const left=byText('div','', '');left.append(byText('div','result-eyebrow',g.source==='ai'?'AI VISION / GỢI Ý':'OFFLINE / GỢI Ý THEO LOẠI'));
   left.append(byText('h2','result-title',g.title));left.append(byText('div','result-type',`${g.category||'Phân tích hình ảnh'} • Độ tin cậy ${g.confidence||'chưa xác định'}`));
+  if(g.source==='ai')left.append(byText('p','verification',`🔎 ${g.verification||'Chưa có nguồn web'}`));
   top.append(left,byText('span','result-tag',g.source==='ai'?'AI ONLINE':'MIỄN PHÍ'));root.append(top);
   root.append(byText('div','result-summary',g.summary));
   root.append(byText('div','result-subtitle','MỤC TIÊU HIỆN TẠI'),byText('div','result-objective',g.objective));
@@ -193,12 +203,21 @@ function renderGuide(){
     ck.setAttribute('aria-label',`Hoàn thành bước ${i+1}`);
     li.classList.toggle('done',ck.checked);
     ck.addEventListener('change',()=>{state.checks[i]=ck.checked;li.classList.toggle('done',ck.checked);if(state.editingId){const t=data.tasks.find(t=>t.id===state.editingId);if(t){t.steps[i].done=ck.checked;saveData();updateStats();}}});
-    li.append(ck,byText('span','',`${i+1}. ${txt}`));ul.append(li);
+    li.append(ck,byText('span','',txt));ul.append(li);
   });root.append(ul);
   if(g.warning)root.append(byText('p','result-warning',`ⓘ ${g.warning}`));
+  if(g.source==='ai' && Array.isArray(g.sources) && g.sources.length){
+    root.append(byText('div','result-subtitle','NGUỒN HƯỚNG DẪN THAM KHẢO'));
+    const cited=byText('div','source-list','');
+    for(const src of g.sources.slice(0,5)){
+      if(typeof src?.url!=='string'||!/^https?:\/\//.test(src.url))continue;
+      cited.append(addLink(`↗ ${String(src.title||'Mở nguồn').slice(0,90)}`,src.url));
+    }
+    root.append(cited);
+  }
   const actions=byText('div','result-action','');
   actions.append(addButton(state.editingId?'✓ CẬP NHẬT JOURNAL':'↓ LƯU VÀO JOURNAL','btn-primary',saveCurrentGuide));
-  actions.append(addButton('✧ PHÂN TÍCH BẰNG AI','btn-outline',analyzeWithAI));
+  actions.append(addButton('✧ HỎI AI LẠI','btn-outline',analyzeWithAI));
   root.append(actions);
   const links=guideLinks(g.query||$('questTitle').value||g.objective);
   const linkrow=byText('div','link-row','');linkrow.append(addLink('↗ Tìm hướng dẫn Google',links.web),addLink('▶ Tìm video YouTube',links.video));root.append(linkrow);
@@ -281,26 +300,45 @@ $('testEndpoint').addEventListener('click',async()=>{
     const base=ep.replace(/\/analyze\/?$/,'');
     const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),12000);
     let res;try{res=await fetch(base+'/health',{signal:ctrl.signal})}finally{clearTimeout(timeout)}
-    const out=await res.json();if(res.ok&&out.ok)toast('Worker đang hoạt động. Hãy lưu URL và nhập mật khẩu để dùng AI.');
+    const out=await res.json();if(res.ok&&out.ok)toast(out.configured?'Worker v'+(out.version||'?')+' sẵn sàng. Hãy lưu URL, nhập mật khẩu và đồng ý gửi ảnh.':'Worker chạy được nhưng chưa thêm đủ secrets trong Cloudflare.');
     else throw Error(out.error||`HTTP ${res.status}`);
   }catch(e){toast(`Không kết nối được: ${e.message}`,true)}
 });
+
+async function getImageForAI(){
+  if(!state.imageData)return null;
+  if(!$('maskUid').checked)return state.imageData;
+  const im=new Image();im.src=state.imageData;await im.decode();
+  const cv=document.createElement('canvas');cv.width=im.naturalWidth;cv.height=im.naturalHeight;
+  const ctx=cv.getContext('2d',{alpha:false});ctx.drawImage(im,0,0);
+  // WuWa typically renders User ID in the lower-right corner. Mask a generous rectangle,
+  // but warn that this can also obscure objectives if they are in that area.
+  ctx.fillStyle='#0a1012';
+  ctx.fillRect(Math.round(cv.width*.61),Math.round(cv.height*.92),Math.ceil(cv.width*.39),Math.ceil(cv.height*.08));
+  return cv.toDataURL('image/jpeg',.84);
+}
+$('aiQuickButton').addEventListener('click',analyzeWithAI);
 
 async function analyzeWithAI(){
   if(!data.endpoint){toast('Bạn chưa kết nối Worker. Mở tab “Cài đặt AI” để xem hướng dẫn.',true);showTab('settings');return}
   if(!state.aiAuth){toast('Hãy nhập mật khẩu truy cập Worker trong “Cài đặt AI”.',true);showTab('settings');return}
   if(!$('aiConsent').checked){toast('Bạn cần xác nhận đồng ý gửi ảnh và nội dung đến AI trong “Cài đặt AI”.',true);showTab('settings');return}
-  if(!state.imageData){toast('Muốn AI đọc câu đố, hãy chọn ảnh trước. Có thể gửi chỉ văn bản nếu cần.',true)}
+  if(state.aiBusy)return;
+  if(!state.imageData && !$('questTitle').value.trim() && !$('questObjective').value.trim() && !$('ocrText').value.trim()){toast('Hãy chọn ảnh nhiệm vụ hoặc nhập mục tiêu trước.',true);return}
   const endpoint=normalizeHttpsEndpoint(data.endpoint);
-  const buttons=$('guideMount').querySelectorAll('button');buttons.forEach(b=>b.disabled=true);
-  toast('Đang gửi yêu cầu tới Worker…');
+  const analyzeUrl=endpoint.endsWith('/analyze')?endpoint:endpoint+'/analyze';
+  const buttons=[...$('guideMount').querySelectorAll('button'),$('aiQuickButton')];
+  state.aiBusy=true;buttons.forEach(b=>b.disabled=true);
+  $('aiQuickButton').textContent='⏳ ĐANG PHÂN TÍCH...';
+  $('aiProgress').textContent='Gemini đang xem ảnh và tra cứu walkthrough (có thể mất một lúc)...';
+  toast('Đang phân tích ảnh và tìm hướng dẫn quest…');
   try{
-    const image=await getImageForProcessing();
-    const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),50000);
+    const image=await getImageForAI();
+    const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),65000);
     let res;
     try{
-      res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${state.aiAuth}`},
-        body:JSON.stringify({image,questTitle:$('questTitle').value,objective:$('questObjective').value,ocr:cleanText($('ocrText').value)}),signal:ctrl.signal});
+      res=await fetch(analyzeUrl,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${state.aiAuth}`},
+        body:JSON.stringify({image,questTitle:$('questTitle').value,objective:$('questObjective').value,ocr:cleanText($('ocrText').value),previous:state.previousGuide||state.currentGuide}),signal:ctrl.signal});
     } finally {clearTimeout(timeout)}
     const body=await res.json().catch(()=>({}));
     if(!res.ok)throw Error(body.error||`Máy chủ trả lỗi ${res.status}`);
@@ -310,15 +348,30 @@ async function analyzeWithAI(){
       category:'AI phân tích ảnh',type:'unknown',confidence:String(body.confidence||'chưa xác định').slice(0,40),source:'ai',
       summary:String(body.summary||'Kết quả AI').slice(0,1500),steps:body.steps.slice(0,9).map(v=>String(v).slice(0,600)),
       query:String($('questTitle').value||$('questObjective').value).slice(0,200)+' Wuthering Waves walkthrough',
-      warning:'AI có thể suy đoán sai chi tiết và chưa xác minh với hướng dẫn nhiệm vụ chính thức. Đối chiếu với game trước khi làm.',
+      warning:String(body.warning||'Kiểm tra hướng dẫn với mục tiêu trong game.'),verification:String(body.verification||'Chưa có nguồn web'),sources:Array.isArray(body.sources)?body.sources.slice(0,5):[],
       questions:Array.isArray(body.questions)?body.questions.slice(0,3).map(String):[]};
-    state.currentGuide=guide;state.checks=guide.steps.map(()=>false);state.editingId=null;
-    renderGuide();toast('AI đã phân tích ảnh/nội dung nhiệm vụ.');
-  }catch(e){console.error(e);toast(`Lỗi AI: ${e.message||e}`,true)}
-  finally{buttons.forEach(b=>b.disabled=false)}
+    state.currentGuide=guide;state.previousGuide=guide;state.checks=guide.steps.map(()=>false);state.editingId=null;
+    $('questTitle').value=guide.title==='Chưa rõ tên nhiệm vụ'?'':guide.title;
+    $('questObjective').value=guide.objective||$('questObjective').value;
+    renderGuide();toast(body.verification==='Có nguồn tham khảo'?'Đã phân tích và tìm được nguồn tham khảo!':'Đã có hướng dẫn AI; chưa tìm thấy nguồn web.');
+    $('aiProgress').textContent=body.verification||'Đã phân tích xong.';
+  }catch(e){console.error(e);$('aiProgress').textContent=`Lỗi: ${e?.name==='AbortError'?'Quá thời gian chờ (65 giây).':e.message||e}`;toast(`Lỗi AI: ${e?.name==='AbortError'?'Quá thời gian chờ.':e.message||e}`,true)}
+  finally{state.aiBusy=false;buttons.forEach(b=>b.disabled=false);$('aiQuickButton').textContent='✧ GIẢI NHIỆM VỤ BẰNG AI →'}
 }
 
 if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  window.addEventListener('load',async()=>{
+    try {
+      let wasControlled=Boolean(navigator.serviceWorker.controller);
+      navigator.serviceWorker.addEventListener('controllerchange',()=>{
+        if(wasControlled && !sessionStorage.getItem('wuwa-sw-reloaded-v201')){
+          sessionStorage.setItem('wuwa-sw-reloaded-v201','yes');
+          location.reload();
+        }
+      });
+      const registration=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
+      await registration.update();
+    } catch (err) { console.warn('Service Worker update skipped',err); }
+  });
 }
 updateStats();

@@ -11,22 +11,22 @@
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2.0.1">
   <title>WuWa AI Assistant</title>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div><div class="ambient ambient-two" aria-hidden="true"></div>
   <div class="app-shell">
     <header class="topbar">
-      <div class="brand"><div class="brand-mark">W<span>.</span></div><div><strong>WuWa <span class="brand-accent">AI</span></strong><small>ASSISTANT / V1.1</small></div></div>
+      <div class="brand"><div class="brand-mark">W<span>.</span></div><div><strong>WuWa <span class="brand-accent">AI</span></strong><small>ASSISTANT / V2.0.1</small></div></div>
       <div class="top-right"><span class="private-pill"><span class="online-dot"></span> Ưu tiên riêng tư</span><button class="icon-button" id="helpButton" title="Hướng dẫn" aria-label="Mở hướng dẫn">?</button></div>
     </header>
 
     <main>
       <section class="hero">
         <div class="eyebrow"><span class="line"></span> YOUR QUEST COMPANION</div>
-        <div class="hero-content"><div><h1>Gỡ nhiệm vụ.<br><em>Không còn mắc kẹt.</em></h1><p>Từ ảnh chụp màn hình đến từng bước cần làm. Dành cho Rover trên iPhone & iPad.</p></div><div class="hero-symbol" aria-hidden="true"><div class="ring ring-a"></div><div class="ring ring-b"></div><span>✦</span></div></div>
-        <div class="hero-stats"><div><strong id="countAll">0</strong><small>NHIỆM VỤ LƯU</small></div><div><strong id="countDone">0</strong><small>ĐÃ HOÀN THÀNH</small></div><div><strong>0₫</strong><small>PHÂN TÍCH CƠ BẢN</small></div></div>
+        <div class="hero-content"><div><h1>Gỡ nhiệm vụ.<br><em>AI hiểu cả ảnh.</em></h1><p>Từ ảnh chụp màn hình đến từng bước cần làm. Dành cho Rover trên iPhone & iPad.</p></div><div class="hero-symbol" aria-hidden="true"><div class="ring ring-a"></div><div class="ring ring-b"></div><span>✦</span></div></div>
+        <div class="hero-stats"><div><strong id="countAll">0</strong><small>NHIỆM VỤ LƯU</small></div><div><strong id="countDone">0</strong><small>ĐÃ HOÀN THÀNH</small></div><div><strong>AI</strong><small>VISION + TRA CỨU</small></div></div>
       </section>
 
       <nav class="tabs" aria-label="Điều hướng">
@@ -48,6 +48,12 @@
             <div class="preview-stage"><div class="image-frame" id="cropSurface"><img id="previewImage" alt="Ảnh nhiệm vụ đã chọn"><div class="crop-rect" id="cropRect" hidden></div></div></div>
             <div class="preview-bottom"><span id="imageMeta">Ảnh được xử lý trong trình duyệt</span><button class="btn-link" id="clearCrop" hidden>Bỏ vùng chọn</button></div>
           </div>
+          <div class="ai-primary-panel" id="aiPrimaryPanel">
+            <div><strong>✦ GIẢI QUEST BẰNG AI VISION</strong><p>Gửi ảnh cho Gemini để nhận diện bối cảnh, tra walkthrough và chỉ từng bước. <b>Cần kết nối Worker một lần.</b></p></div>
+            <button class="btn btn-primary" id="aiQuickButton">✧ GIẢI NHIỆM VỤ BẰNG AI →</button>
+            <label class="consent uid-option"><input type="checkbox" id="maskUid" checked><span>Che góc dưới phải ảnh trước khi gửi (thường chứa UID). Nếu mục tiêu nằm ở đó, hãy tắt và tự che UID.</span></label>
+            <p class="inline-status" id="aiProgress" role="status">Chỉ gửi ảnh sau khi bạn đồng ý ở tab Cài đặt AI. Chưa kết nối thì nút sẽ mở hướng dẫn.</p>
+          </div>
           <div class="ocr-controls"><div class="select-wrap"><label for="ocrLang">NGÔN NGỮ CHỮ TRONG GAME</label><select id="ocrLang"><option value="eng">English (khuyên dùng)</option><option value="vie">Tiếng Việt</option></select></div><button class="btn btn-accent" id="ocrButton"><span>⌕</span> ĐỌC CHỮ TỪ ẢNH</button></div>
           <div class="progress-outer" id="ocrProgressWrap" hidden><div class="progress-inner" id="ocrProgress"></div></div><p class="inline-status" id="ocrStatus" role="status">OCR xử lý trên thiết bị; lần đầu cần tải thư viện qua mạng.</p>
         </div>
@@ -58,7 +64,7 @@
           <div class="field"><label for="questObjective">Mục tiêu hiện tại</label><input id="questObjective" placeholder="Ví dụ: Investigate the nearby mechanism" maxlength="300"></div>
           <div class="field"><label for="ocrText">Văn bản nhận diện được <small>— sửa nếu OCR đọc sai</small></label><textarea id="ocrText" rows="5" maxlength="5000" placeholder="Chưa có chữ. Bạn có thể dán nội dung nhiệm vụ vào đây mà không cần ảnh."></textarea></div>
           <div class="field"><label for="questKind">Dạng nhiệm vụ</label><select id="questKind"><option value="auto">Tự nhận diện</option><option value="explore">Tìm đường / khám phá</option><option value="dialogue">NPC / hội thoại</option><option value="fight">Chiến đấu</option><option value="puzzle">Giải đố / cơ quan</option><option value="collect">Thu thập vật phẩm</option></select></div>
-          <div class="buttons-row"><button id="analyzeButton" class="btn btn-primary">✦ PHÂN TÍCH MIỄN PHÍ <span>→</span></button><button id="demoButton" class="btn btn-outline">Dùng thử dữ liệu mẫu</button></div>
+          <div class="buttons-row"><button id="analyzeButton" class="btn btn-primary">✦ PHÂN TÍCH CƠ BẢN (KHÔNG AI) <span>→</span></button><button id="demoButton" class="btn btn-outline">Dùng thử dữ liệu mẫu</button></div>
         </div>
 
         <section id="resultSection" hidden>
@@ -75,21 +81,21 @@
 
       <section id="page-settings" class="page" aria-label="Cài đặt AI" hidden>
         <div class="section-label"><span>OPTIONAL</span> AI VISION ONLINE</div>
-        <div class="panel settings-panel"><div class="setting-icon">✧</div><h2>Phân tích hình ảnh bằng AI</h2><p>Chế độ miễn phí mặc định chỉ phân loại mục tiêu. Để AI phân tích trực tiếp câu đố/hình ảnh, hãy kết nối một Cloudflare Worker của riêng bạn (file mẫu có sẵn trong bộ mã nguồn).</p>
+        <div class="panel settings-panel"><div class="setting-icon">✧</div><h2>Phân tích hình ảnh bằng AI</h2><p>Bản v2 kết nối Gemini Vision với Google Search Grounding để tra quest thật và hiển thị nguồn (khi có). Cần tạo một Worker riêng và một API key Gemini; có thể dùng hạn mức miễn phí đủ điều kiện, không bảo đảm miễn phí vô hạn.</p>
           <div class="notice"><strong>Không nhập Gemini API key tại đây.</strong> API key phải được lưu bằng Secret trong Cloudflare Worker, không đưa lên website công khai.</div>
           <div class="field"><label for="endpointInput">Địa chỉ Worker HTTPS</label><input type="url" id="endpointInput" placeholder="https://wuwa-ai.tenban.workers.dev/analyze" autocomplete="url"></div>
           <div class="field"><label for="tokenInput">Mật khẩu truy cập Worker</label><input type="password" id="tokenInput" placeholder="APP_ACCESS_TOKEN — chỉ giữ trong phiên này" autocomplete="off"></div>
           <label class="consent"><input type="checkbox" id="aiConsent"><span>Tôi đồng ý gửi <b>ảnh đang chọn và văn bản nhiệm vụ</b> đến Worker riêng và nhà cung cấp AI khi nhấn “Phân tích bằng AI”.</span></label>
           <div class="buttons-row"><button class="btn btn-primary" id="saveEndpoint">Lưu địa chỉ Worker</button><button class="btn btn-outline" id="testEndpoint">Kiểm tra kết nối</button></div>
-          <p class="micro">Mật khẩu không được ghi vào localStorage. Ảnh không được lưu trong tiến độ. Không phải mọi tài khoản Gemini đều có hạn mức miễn phí.</p>
+          <p class="micro">Mật khẩu không được ghi vào localStorage. Ảnh không được lưu trong tiến độ. Google có thể xử lý dữ liệu trên hạn mức miễn phí để cải thiện dịch vụ theo điều khoản của họ; tránh tải ảnh nhạy cảm. Hạn mức miễn phí không được bảo đảm.</p>
         </div>
-        <div class="panel mini-faq"><h3>Phạm vi của bản thử nghiệm</h3><p>✔ Đọc chữ trong ảnh, lưu tiến độ, đưa checklist theo nhóm nhiệm vụ.</p><p>✔ Có thể mở đường dẫn tìm hướng dẫn trên web/YouTube.</p><p>✔ Khi bật Worker, AI nhận thêm ảnh và đưa gợi ý cụ thể nhưng có thể sai.</p><p>✕ Không tự chạy nhân vật, không đọc trực tiếp màn hình game, không tự farm.</p></div>
+        <div class="panel mini-faq"><h3>Phạm vi của bản thử nghiệm</h3><p>✔ Đọc chữ trong ảnh, lưu tiến độ, đưa checklist theo nhóm nhiệm vụ.</p><p>✔ AI có thể tra Google Search và gắn link walkthrough khi tìm được nguồn.</p><p>✔ Khi bật Worker, ảnh đi qua Worker của bạn tới Gemini API và AI hướng dẫn cụ thể (vẫn có thể sai).</p><p>✕ Không tự chạy nhân vật, không đọc trực tiếp màn hình game, không tự farm.</p></div>
       </section>
     </main>
     <footer><span>WUWA AI / COMMUNITY TOOL • KHÔNG LIÊN KẾT KURO GAMES</span><span>BUILT FOR ROVERS · 2026</span></footer>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <dialog id="helpDialog" class="help-dialog"><div class="modal-top"><h2>Sử dụng nhanh</h2><button class="icon-button" id="closeHelp" aria-label="Đóng hướng dẫn">×</button></div><ol><li>Trong game, chụp màn hình phần tên và mục tiêu nhiệm vụ.</li><li>Trở lại ứng dụng, chọn ảnh và nhấn <b>Đọc chữ từ ảnh</b>.</li><li>Sửa tên/mục tiêu nếu OCR nhận sai, nhấn <b>Phân tích miễn phí</b>.</li><li>Đánh dấu các bước đã làm và nhấn <b>Lưu vào Journal</b>.</li><li>Nếu có Worker riêng, dùng nút <b>Phân tích bằng AI</b> để đọc cả hình ảnh.</li></ol><p>Lần đầu chạy OCR cần Internet để tải mô hình ngôn ngữ. Mọi kết quả AI cần đối chiếu với game.</p><button class="btn btn-primary" id="helpOk">Đã hiểu</button></dialog>
-  <script type="module" src="app.js"></script>
+  <dialog id="helpDialog" class="help-dialog"><div class="modal-top"><h2>Sử dụng nhanh</h2><button class="icon-button" id="closeHelp" aria-label="Đóng hướng dẫn">×</button></div><ol><li>Trong game, chụp màn hình hiển thị rõ mục tiêu hoặc câu đố.</li><li>Trở lại ứng dụng, chọn ảnh rồi nhấn <b>Giải nhiệm vụ bằng AI</b> (cần cài Worker).</li><li>Nếu chưa có AI, dùng OCR để đọc chữ và <b>Phân tích cơ bản</b>; chế độ này không biết lời giải quest.</li><li>Đánh dấu các bước đã làm và nhấn <b>Lưu vào Journal</b>.</li><li>Chụp màn hình mới sau khi làm một bước và bấm AI tiếp để nhận hướng dẫn bước sau.</li></ol><p>Lần đầu chạy OCR cần Internet để tải mô hình ngôn ngữ. Cần cấu hình Worker và Gemini API, kết quả AI phải đối chiếu với game và nguồn khi có.</p><button class="btn btn-primary" id="helpOk">Đã hiểu</button></dialog>
+  <script type="module" src="app.js?v=2.0.1"></script>
 </body>
 </html>
